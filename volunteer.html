@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#123f35">
+  <meta name="description" content="تِبيان — منصة الاستماع إلى التلاوات القرآنية ومشاركتها، وكل تلاوة تُراجع قبل نشرها.">
+  <title>تطوّع معنا | تِبيان</title>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("tibyan-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tibyan.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+</head>
+<body>
+  <header class="masthead" id="masthead"></header>
+  <nav class="guide" id="guide" aria-label="القائمة الجانبية"></nav>
+  <main class="page" id="page">
+
+    <div class="page-reading" style="max-width:980px">
+      <div class="ayah-banner support-hero">
+        <div class="ayah">﴿ وَتَعَاوَنُوا عَلَى الْبِرِّ وَالتَّقْوَىٰ ﴾</div>
+        <div class="ref">سورة المائدة — ٢</div>
+        <h1>كن من فريق مراجعة تِبيان</h1>
+        <p>يستمع المتطوعون إلى كل تلاوة قبل نشرها، ويتحققون من سلامتها، فلا يصل إلى الناس إلا ما يليق بكلام الله.</p>
+        <a class="btn gold" href="#apply">قدّم طلب التطوع</a>
+      </div>
+
+      <div class="stats" id="stats"></div>
+
+      <h2 class="section-title">ماذا يفعل المتطوع؟</h2>
+      <div class="feature-grid">
+        <div class="feature">${ICON:headphones}<strong>يستمع كاملًا</strong><span>إلى التلاوات والمقاطع القصيرة المنتظرة في صفحة المراجعة.</span></div>
+        <div class="feature">${ICON:shield}<strong>يتحقق</strong><span>من صحة التلاوة وخلوّها من الموسيقى، ومطابقة العنوان والتصنيف ونص الآية.</span></div>
+        <div class="feature">${ICON:check}<strong>يصوّت</strong><span>بالموافقة، أو بالرفض مع ذكر السبب ليصلح صاحب التلاوة ما يلزم.</span></div>
+        <div class="feature">${ICON:clock}<strong>في وقته</strong><span>يراجع متى تيسّر له، ولو ساعة في الأسبوع.</span></div>
+      </div>
+
+      <h2 class="section-title">من يستطيع التطوع؟</h2>
+      <div class="card">
+        <ul class="checklist">
+          <li>إتقان التلاوة وأحكام التجويد الأساسية، ويفضَّل الحافظ أو صاحب الإجازة.</li>
+          <li>الأمانة والدقة، والالتزام بمعايير المراجعة في <a href="policy.html" style="color:var(--gold-ink);font-weight:700">سياسة المحتوى</a>.</li>
+          <li>الاستماع إلى التلاوة كاملة قبل التصويت، وعدم مراجعة ما ترفعه بنفسك.</li>
+        </ul>
+        <p class="muted" style="margin:10px 0 0">تراجع الإدارة الطلبات، وعند القبول تظهر لك «مراجعة التلاوات» في القائمة الجانبية مباشرة.</p>
+      </div>
+
+      <h2 class="section-title" id="apply">طلب التطوع</h2>
+      <div class="card" id="apply-box"></div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="tibyan.js"></script>
+  <script>
+  "use strict";
+
+  const T = window.Tibyan;
+  const $ = id => document.getElementById(id);
+  document.querySelectorAll(".feature").forEach(f => {
+    f.innerHTML = f.innerHTML.replace(/\$\{ICON:([a-z]+)\}/, (_, n) => `<span class="feature-icon">${T.icon(n)}</span>`);
+  });
+
+  function note(text, type = "") {
+    return `<div class="notice ${type}">${text}</div>`;
+  }
+
+  async function loadStats() {
+    const { data } = await T.client.rpc("volunteer_stats");
+    if (!data) return;
+    $("stats").innerHTML = [
+      ["متطوعًا في الفريق", data.volunteers],
+      ["مراجعة أُنجزت", data.reviews],
+      ["تلاوة نُشرت بعد المراجعة", data.published],
+      ["تنتظر المراجعة الآن", data.pending]
+    ].map(([l, v]) => `<div class="stat">${l}<strong>${T.formatCount(v)}</strong></div>`).join("");
+  }
+
+  function formHTML() {
+    return `<form id="apply-form">
+      <div class="form-grid">
+        <div class="field"><label for="a-name">الاسم الكامل *</label><input id="a-name" required maxlength="100"></div>
+        <div class="field"><label for="a-phone">رقم التواصل (اختياري)</label><input id="a-phone" maxlength="30" dir="ltr" inputmode="tel"></div>
+        <div class="field"><label for="a-country">الدولة</label><input id="a-country" maxlength="60"></div>
+        <div class="field"><label for="a-hours">الساعات المتاحة أسبوعيًا</label>
+          <select id="a-hours"><option value="1">ساعة</option><option value="3" selected>2–3 ساعات</option><option value="5">4–5 ساعات</option><option value="10">أكثر من 5 ساعات</option></select></div>
+        <div class="field"><label for="a-quran">مقدار الحفظ *</label>
+          <select id="a-quran" required>
+            <option value="">اختر</option>
+            <option>حافظ للقرآن كاملًا</option><option>أكثر من 15 جزءًا</option><option>من 5 إلى 15 جزءًا</option><option>أقل من 5 أجزاء</option>
+          </select></div>
+        <div class="field"><label for="a-tajweed">مستوى التجويد</label>
+          <select id="a-tajweed"><option>متقن ومُدرِّس</option><option selected>متقن</option><option>متوسط</option></select></div>
+        <div class="field full"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" id="a-ijazah"> لديّ إجازة في القرآن أو القراءات</label></div>
+        <div class="field full" id="ijazah-field" hidden><label for="a-ijazah-details">تفاصيل الإجازة</label><input id="a-ijazah-details" maxlength="500" placeholder="الرواية، الشيخ المجيز…"></div>
+        <div class="field full"><label for="a-motivation">لماذا تريد التطوع؟ وما خبرتك في الإقراء أو المراجعة؟</label><textarea id="a-motivation" maxlength="1500"></textarea></div>
+        <div class="field full"><label style="display:flex;gap:8px;align-items:start;font-weight:600"><input type="checkbox" id="a-pledge" required style="margin-top:6px">
+          أتعهد بالأمانة في المراجعة، والاستماع الكامل قبل التصويت، والالتزام بسياسة المحتوى.</label></div>
+      </div>
+      <button class="btn brand" type="submit">${T.icon("volunteer")}إرسال الطلب</button>
+      <div id="apply-msg"></div>
+    </form>`;
+  }
+
+  async function renderApply() {
+    const box = $("apply-box");
+    const roles = T.state.roles || {};
+    const me = T.state.user;
+
+    if (!me) {
+      box.innerHTML = `<p class="muted">سجّل الدخول أو أنشئ حسابًا لتقديم طلب التطوع.</p>
+        <div class="actions"><a class="btn brand" href="${T.esc(T.loginUrl())}">تسجيل الدخول</a><a class="btn" href="signup.html">إنشاء حساب</a></div>`;
+      return;
+    }
+    if (roles.setupMissing) { box.innerHTML = note(T.esc(T.friendlyError(roles.error)), "error"); return; }
+    if (roles.is_volunteer) {
+      box.innerHTML = note("أنت من فريق المراجعة، جزاك الله خيرًا.", "success") +
+        `<div class="actions" style="margin-top:12px"><a class="btn brand" href="review.html">${T.icon("shield")}اذهب إلى المراجعة</a></div>`;
+      return;
+    }
+
+    const { data, error } = await T.client.from("volunteer_applications")
+      .select("id,status,admin_note,created_at").eq("user_id", me.id).maybeSingle();
+    if (error) { box.innerHTML = note(T.esc(T.friendlyError(error)), "error"); return; }
+
+    if (data && data.status === "pending") {
+      box.innerHTML = note("طلبك قيد المراجعة لدى الإدارة منذ " + T.esc(T.timeAgo(data.created_at)) + ". سنضيفك إلى الفريق عند القبول بإذن الله.") +
+        `<button class="btn" id="withdraw" type="button" style="margin-top:12px">سحب الطلب</button>`;
+      $("withdraw").onclick = async () => {
+        if (!confirm("سحب طلب التطوع؟")) return;
+        await T.client.from("volunteer_applications").delete().eq("id", data.id);
+        renderApply();
+      };
+      return;
+    }
+    if (data && data.status === "rejected") {
+      box.innerHTML = note("اعتذرت الإدارة عن قبول طلبك." + (data.admin_note ? " الملاحظة: " + T.esc(data.admin_note) : ""), "error") +
+        `<button class="btn" id="reapply" type="button" style="margin-top:12px">تقديم طلب جديد</button>`;
+      $("reapply").onclick = async () => {
+        await T.client.from("volunteer_applications").delete().eq("id", data.id);
+        renderApply();
+      };
+      return;
+    }
+    if (data && data.status === "approved") {
+      box.innerHTML = note("قُبل طلبك. إن لم تظهر لك صفحة المراجعة فتواصل مع الإدارة.", "success");
+      return;
+    }
+
+    box.innerHTML = formHTML();
+    $("a-ijazah").onchange = () => { $("ijazah-field").hidden = !$("a-ijazah").checked; };
+    $("apply-form").onsubmit = async e => {
+      e.preventDefault();
+      const btn = e.target.querySelector('[type="submit"]');
+      btn.disabled = true;
+      const { error: err } = await T.client.from("volunteer_applications").insert({
+        user_id: me.id,
+        full_name: $("a-name").value.trim(),
+        phone: $("a-phone").value.trim() || null,
+        country: $("a-country").value.trim() || null,
+        quran_level: $("a-quran").value,
+        tajweed_level: $("a-tajweed").value,
+        has_ijazah: $("a-ijazah").checked,
+        ijazah_details: $("a-ijazah").checked ? ($("a-ijazah-details").value.trim() || null) : null,
+        hours_per_week: Number($("a-hours").value),
+        motivation: $("a-motivation").value.trim() || null
+      });
+      btn.disabled = false;
+      if (err) { $("apply-msg").innerHTML = note("تعذّر الإرسال: " + T.esc(T.friendlyError(err)), "error"); return; }
+      T.toast("أُرسل طلبك، جزاك الله خيرًا");
+      renderApply();
+    };
+  }
+
+  async function main() {
+    await T.mountShell({ active: "volunteer" });
+    loadStats();
+    renderApply();
+  }
+  main();
+  </script>
+</body>
+</html>

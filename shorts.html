@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#123f35">
+  <meta name="description" content="تِبيان — منصة الاستماع إلى التلاوات القرآنية ومشاركتها، وكل تلاوة تُراجع قبل نشرها.">
+  <title>مقاطع قصيرة | تِبيان</title>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("tibyan-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tibyan.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+</head>
+<body>
+  <header class="masthead" id="masthead"></header>
+  <nav class="guide" id="guide" aria-label="القائمة الجانبية"></nav>
+  <main class="page" id="page">
+
+    <div class="shorts-feed" id="feed" aria-label="المقاطع القصيرة"></div>
+    <div class="short-nav" id="nav" hidden>
+      <button class="icon-btn" id="prev" type="button" aria-label="المقطع السابق"></button>
+      <button class="icon-btn" id="next" type="button" aria-label="المقطع التالي"></button>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="tibyan.js"></script>
+  <script>
+  "use strict";
+
+  const T = window.Tibyan;
+  const $ = id => document.getElementById(id);
+  const startId = new URLSearchParams(location.search).get("s");
+  document.body.classList.add("shorts-page");
+
+  let shorts = [];
+  let ctx = { thumbs: new Map(), channels: new Map() };
+  let me = null;
+  let muted = true;
+  let current = -1;
+  const states = new Map();      // id → حالة الإعجاب والاشتراك
+  const viewed = new Set();
+
+  $("prev").innerHTML = T.icon("up");
+  $("next").innerHTML = T.icon("down");
+
+  function slotHTML(v, i) {
+    const ch = ctx.channels.get(v.user_id);
+    const chName = ch ? ch.channel_name : (v.reader_name || "تِبيان");
+    const thumb = ctx.thumbs.get(String(v.id));
+    return `<section class="short-slot" data-index="${i}">
+      <div class="short" data-id="${T.esc(v.id)}">
+        ${thumb ? `<img src="${T.esc(thumb)}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:brightness(.6)">`
+                : `<div class="art ${T.categoryArt(v.category)}"><div class="art-title">${T.esc(v.caption || v.title)}</div></div>`}
+        <div class="media-holder"></div>
+        <button class="short-tap" type="button" aria-label="تشغيل أو إيقاف مؤقت"></button>
+        <div class="short-paused" hidden><span>${T.icon("play")}</span></div>
+        <div class="short-top">
+          <button class="unmute-hint" type="button" data-unmute ${muted ? "" : "hidden"}>${T.icon("mute")}اضغط لتشغيل الصوت</button>
+          <button class="icon-btn" type="button" data-mute aria-label="كتم الصوت">${T.icon(muted ? "mute" : "volume")}</button>
+        </div>
+        <div class="short-info">
+          ${v.caption && thumb ? `<div class="short-caption">${T.esc(v.caption)}</div>` : ""}
+          <div class="short-title">${T.esc(v.title)}</div>
+          <div class="short-owner">
+            <a href="${T.esc(ch ? T.channelUrl(ch) : "results.html?q=" + encodeURIComponent(v.reader_name || ""))}">${T.avatarHTML(chName, ch && ch.avatar, "sm")}</a>
+            <a href="${T.esc(ch ? T.channelUrl(ch) : "#")}">${T.esc(chName)}</a>
+            ${ch && (!me || ch.user_id !== me.id) ? `<button class="btn" type="button" data-subscribe>اشترك</button>` : ""}
+          </div>
+          ${v.reader_name ? `<div class="short-reader">القارئ ${T.esc(v.reader_name)} • ${T.formatViews(v.view_count)}</div>` : ""}
+        </div>
+        <div class="short-progress"><i></i></div>
+      </div>
+      <div class="short-actions">
+        <button class="short-act" type="button" data-like><span class="circle">${T.icon("like")}</span><span data-like-count>أعجبني</span></button>
+        <button class="short-act" type="button" data-comments><span class="circle">${T.icon("comment")}</span><span data-comment-count>تعليق</span></button>
+        <button class="short-act" type="button" data-share><span class="circle">${T.icon("share")}</span><span>مشاركة</span></button>
+        <button class="short-act" type="button" data-save><span class="circle">${T.icon("save")}</span><span>حفظ</span></button>
+        <a class="short-act" href="${T.esc(T.watchUrl(v, "&full=1"))}" title="فتح في صفحة المشاهدة"><span class="circle">${T.icon("play")}</span><span>كاملة</span></a>
+      </div>
+    </section>`;
+  }
+
+  /* ---------- التشغيل ---------- */
+  function mediaOf(slot) { return slot.querySelector(".media-holder video, .media-holder audio"); }
+
+  async function mountMedia(slot, v) {
+    const holder = slot.querySelector(".media-holder");
+    if (holder.dataset.ready) return mediaOf(slot);
+    holder.dataset.ready = "1";
+    const path = T.storagePath(v.video_url);
+    const url = path ? await T.signedUrl(path, 60 * 60 * 3) : (T.isHttpUrl(v.video_url || "") ? v.video_url : "");
+    if (!url) return null;
+    const audio = T.isAudioPath(path || url);
+    const el = document.createElement(audio ? "audio" : "video");
+    el.src = url;
+    el.loop = true;
+    el.muted = muted;
+    el.preload = "auto";
+    el.playsInline = true;
+    if (!audio) el.setAttribute("playsinline", "");
+    holder.appendChild(el);
+    if (!audio) slot.querySelector(".short > img, .short > .art") && slot.querySelector(".short > img, .short > .art").remove();
+
+    const bar = slot.querySelector(".short-progress i");
+    el.addEventListener("timeupdate", () => {
+      if (el.duration) bar.style.width = (el.currentTime / el.duration * 100) + "%";
+      if (!viewed.has(v.id) && el.currentTime > 3) {
+        viewed.add(v.id);
+        T.client.rpc("record_view", { p_video_id: String(v.id) });
+      }
+    });
+    el.addEventListener("play", () => slot.querySelector(".short-paused").hidden = true);
+    el.addEventListener("pause", () => slot.querySelector(".short-paused").hidden = false);
+    return el;
+  }
+
+  async function activate(index) {
+    if (index === current) return;
+    current = index;
+    const v = shorts[index];
+    document.querySelectorAll(".short-slot").forEach((slot, i) => {
+      if (i !== index) {
+        const m = mediaOf(slot);
+        if (m) m.pause();
+      }
+    });
+    const slot = document.querySelector(`.short-slot[data-index="${index}"]`);
+    history.replaceState(null, "", "shorts.html?s=" + encodeURIComponent(v.id));
+    document.title = v.title + " | مقاطع قصيرة | تِبيان";
+
+    const m = await mountMedia(slot, v);
+    if (m && current === index) {
+      m.muted = muted;
+      m.currentTime = 0;
+      m.play().catch(() => { slot.querySelector(".short-paused").hidden = false; });
+    }
+    loadState(slot, v);
+    // تجهيز المقطع التالي مسبقًا
+    const nextSlot = document.querySelector(`.short-slot[data-index="${index + 1}"]`);
+    if (nextSlot) mountMedia(nextSlot, shorts[index + 1]);
+  }
+
+  async function loadState(slot, v) {
+    let st = states.get(v.id);
+    if (!st) {
+      const { data } = await T.client.rpc("watch_state", { p_video_id: String(v.id) });
+      st = data || { likes: 0, liked: false, comments: 0, channel: null };
+      states.set(v.id, st);
+    }
+    const like = slot.querySelector("[data-like]");
+    like.classList.toggle("on", !!st.liked);
+    slot.querySelector("[data-like-count]").textContent = st.likes ? T.formatCount(st.likes) : "أعجبني";
+    slot.querySelector("[data-comment-count]").textContent = st.comments ? T.formatCount(st.comments) : "تعليق";
+    const sub = slot.querySelector("[data-subscribe]");
+    if (sub && st.channel) {
+      sub.classList.toggle("subscribed", !!st.channel.subscribed);
+      sub.textContent = st.channel.subscribed ? "مشترك" : "اشترك";
+    }
+  }
+
+  function setMuted(value) {
+    muted = value;
+    document.querySelectorAll(".media-holder video, .media-holder audio").forEach(m => { m.muted = muted; });
+    document.querySelectorAll("[data-mute]").forEach(b => { b.innerHTML = T.icon(muted ? "mute" : "volume"); });
+    document.querySelectorAll("[data-unmute]").forEach(b => { b.hidden = !muted; });
+  }
+
+  function go(delta) {
+    const target = document.querySelector(`.short-slot[data-index="${current + delta}"]`);
+    if (target) target.scrollIntoView({ behavior: "smooth" });
+  }
+
+  /* ---------- الإجراءات ---------- */
+  async function toggleLike(slot, v) {
+    if (!me) return T.goLogin("سجّل الدخول لتسجيل إعجابك.");
+    const st = states.get(v.id) || { likes: 0, liked: false };
+    const was = st.liked;
+    const q = was
+      ? T.client.from("video_likes").delete().eq("video_id", v.id).eq("user_id", me.id)
+      : T.client.from("video_likes").insert({ video_id: v.id, user_id: me.id });
+    const { error } = await q;
+    if (error) return T.toast(T.friendlyError(error));
+    st.liked = !was;
+    st.likes = Math.max(0, (st.likes || 0) + (was ? -1 : 1));
+    states.set(v.id, st);
+    loadState(slot, v);
+  }
+
+  async function toggleSubscribe(slot, v) {
+    if (!me) return T.goLogin("سجّل الدخول للاشتراك في القناة.");
+    const st = states.get(v.id);
+    if (!st || !st.channel) return;
+    const ch = st.channel;
+    const q = ch.subscribed
+      ? T.client.from("subscriptions").delete().eq("user_id", me.id).eq("channel_id", ch.id)
+      : T.client.from("subscriptions").insert({ user_id: me.id, channel_id: ch.id });
+    const { error } = await q;
+    if (error) return T.toast(T.friendlyError(error));
+    ch.subscribed = !ch.subscribed;
+    // تحديث كل مقاطع القناة نفسها
+    states.forEach(s => { if (s.channel && s.channel.id === ch.id) s.channel.subscribed = ch.subscribed; });
+    document.querySelectorAll(".short-slot").forEach((sl, i) => {
+      if (shorts[i].user_id === v.user_id) loadState(sl, shorts[i]);
+    });
+    T.toast(ch.subscribed ? "تم الاشتراك في " + ch.name : "أُلغي الاشتراك");
+  }
+
+  async function openComments(v) {
+    const { data, error } = await T.client.rpc("get_comments", { p_video_id: String(v.id) });
+    const list = error ? [] : (data || []);
+    const top = list.filter(c => !c.parent_id);
+    const replies = id => list.filter(c => c.parent_id === id).reverse();
+    const one = (c, small) => `<div class="comment">${T.avatarHTML(c.author_name, "", small ? "sm" : "md")}
+      <div class="comment-body"><div class="comment-author">${c.is_creator ? `<span class="creator">${T.esc(c.author_name)} ✓</span>` : T.esc(c.author_name)}<time>${T.esc(T.timeAgo(c.created_at))}</time></div>
+      <div class="comment-text">${T.esc(c.body)}</div>
+      ${small ? "" : `<div class="replies">${replies(c.id).map(r => one(r, true)).join("")}</div>`}</div></div>`;
+
+    const m = T.modal(`
+      <h2>التعليقات <span class="muted" style="font-size:13px">${list.length}</span>
+        <button class="icon-btn" data-close type="button" aria-label="إغلاق">${T.icon("close")}</button></h2>
+      ${me ? `<form id="short-comment" style="display:flex;gap:8px;margin-bottom:14px">
+          <input class="input" maxlength="2000" placeholder="أضف تعليقًا طيبًا…" required style="flex:1">
+          <button class="btn brand" type="submit">${T.icon("send")}</button></form>`
+        : `<p class="muted"><a href="${T.esc(T.loginUrl())}" style="color:var(--gold-ink);font-weight:700">سجّل الدخول</a> لإضافة تعليق.</p>`}
+      <div class="comments-sheet">${top.map(c => one(c, false)).join("") || '<p class="muted">لا توجد تعليقات بعد.</p>'}</div>`);
+
+    const form = m.root.querySelector("#short-comment");
+    if (form) form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const input = form.querySelector("input");
+      const { error: err } = await T.client.from("comments").insert({ video_id: v.id, user_id: me.id, body: input.value.trim() });
+      if (err) return T.toast("تعذّر الإرسال: " + T.friendlyError(err));
+      const st = states.get(v.id);
+      if (st) st.comments = (st.comments || 0) + 1;
+      m.close();
+      T.toast("أُضيف تعليقك");
+      openComments(v);
+      const slot = document.querySelector(`.short[data-id="${v.id}"]`);
+      if (slot) loadState(slot.closest(".short-slot"), v);
+    });
+  }
+
+  $("feed").addEventListener("click", e => {
+    const slot = e.target.closest(".short-slot");
+    if (!slot) return;
+    const v = shorts[Number(slot.dataset.index)];
+    if (e.target.closest("[data-unmute]") || e.target.closest("[data-mute]")) {
+      setMuted(e.target.closest("[data-unmute]") ? false : !muted);
+      const m = mediaOf(slot);
+      if (m && m.paused) m.play().catch(() => {});
+      return;
+    }
+    if (e.target.closest(".short-tap")) {
+      const m = mediaOf(slot);
+      if (!m) return;
+      if (muted) { setMuted(false); if (!m.paused) return; }
+      m.paused ? m.play() : m.pause();
+      return;
+    }
+    if (e.target.closest("[data-like]")) return toggleLike(slot, v);
+    if (e.target.closest("[data-subscribe]")) return toggleSubscribe(slot, v);
+    if (e.target.closest("[data-comments]")) return openComments(v);
+    if (e.target.closest("[data-share]")) return T.share(v.title, location.origin + location.pathname.replace(/[^/]*$/, "") + "shorts.html?s=" + v.id);
+    if (e.target.closest("[data-save]")) return T.openSaveDialog(v);
+  });
+
+  $("prev").addEventListener("click", () => go(-1));
+  $("next").addEventListener("click", () => go(1));
+  document.addEventListener("keydown", e => {
+    if (/INPUT|TEXTAREA/.test(document.activeElement.tagName) || document.querySelector(".modal-scrim")) return;
+    if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); go(1); }
+    if (e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); go(-1); }
+    if (e.key === "m") setMuted(!muted);
+    if (e.key === " ") {
+      e.preventDefault();
+      const slot = document.querySelector(`.short-slot[data-index="${current}"]`);
+      const m = slot && mediaOf(slot);
+      if (m) m.paused ? m.play() : m.pause();
+    }
+  });
+
+  /* ---------- البدء ---------- */
+  async function main() {
+    await T.mountShell({ active: "shorts", overlayGuide: window.innerWidth < 1300 });
+    me = T.state.user;
+
+    try {
+      let first = null;
+      if (startId) {
+        const { data } = await T.client.from("videos").select(T.VIDEO_COLUMNS).eq("id", startId).maybeSingle();
+        if (data && data.kind === "short") first = data;
+      }
+      const rest = await T.fetchVideos({ kind: "short", limit: 60, order: "new" });
+      // ترتيب متنوّع: الأحدث مع خلط خفيف
+      const others = rest.filter(v => !first || String(v.id) !== String(first.id))
+        .map((v, i) => ({ v, k: i + Math.random() * 6 })).sort((a, b) => a.k - b.k).map(x => x.v);
+      shorts = first ? [first, ...others] : others;
+    } catch (error) {
+      $("feed").innerHTML = T.emptyHTML("تعذّر تحميل المقاطع", T.friendlyError(error));
+      return;
+    }
+
+    if (!shorts.length) {
+      $("feed").innerHTML = T.emptyHTML("لا توجد مقاطع قصيرة بعد",
+        "تظهر هنا المقاطع القصيرة بعد مراجعتها واعتمادها.",
+        '<a class="btn brand" href="studio.html#upload">ارفع مقطعًا قصيرًا</a>');
+      return;
+    }
+
+    ctx = await T.buildContext(shorts);
+    $("feed").innerHTML = shorts.map(slotHTML).join("");
+    $("nav").hidden = shorts.length < 2;
+
+    const observer = new IntersectionObserver(entries => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && entry.intersectionRatio > 0.6) activate(Number(entry.target.dataset.index));
+      });
+    }, { root: $("feed"), threshold: [0.6] });
+    document.querySelectorAll(".short-slot").forEach(s => observer.observe(s));
+  }
+
+  main().catch(e => {
+    console.error(e);
+    $("feed").innerHTML = T.emptyHTML("حدث خطأ", T.friendlyError(e));
+  });
+  </script>
+</body>
+</html>

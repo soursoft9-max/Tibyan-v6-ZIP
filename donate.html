@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#123f35">
+  <meta name="description" content="تِبيان — منصة الاستماع إلى التلاوات القرآنية ومشاركتها، وكل تلاوة تُراجع قبل نشرها.">
+  <title>ادعم تِبيان | تِبيان</title>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("tibyan-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tibyan.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+</head>
+<body>
+  <header class="masthead" id="masthead"></header>
+  <nav class="guide" id="guide" aria-label="القائمة الجانبية"></nav>
+  <main class="page" id="page">
+
+    <div class="page-reading" style="max-width:980px">
+      <div class="ayah-banner support-hero">
+        <div class="ayah">﴿ وَمَا تُنفِقُوا مِنْ خَيْرٍ فَلِأَنفُسِكُمْ ﴾</div>
+        <div class="ref">سورة البقرة — ٢٧٢</div>
+        <h1>ادعم تِبيان</h1>
+        <p id="intro">تِبيان منصة مستقلة بلا إعلانات. تبرعك يغطي تكاليف الخادم وتخزين التلاوات ونقلها إلى المستمعين، ليبقى كلام الله متاحًا للجميع.</p>
+        <a class="btn gold" href="#ways" id="donate-now">تبرّع الآن</a>
+      </div>
+
+      <div id="ways-anchor"></div>
+      <div id="content"><div class="card skeleton"><div class="line"></div><div class="line short"></div></div></div>
+    </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="tibyan.js"></script>
+  <script>
+  "use strict";
+
+  const T = window.Tibyan;
+  const $ = id => document.getElementById(id);
+  let settings = null, progress = null;
+
+  const money = (n, cur) => new Intl.NumberFormat("ar-u-nu-latn", { maximumFractionDigits: 3 }).format(Number(n) || 0) + " " + (cur || "");
+
+  function copyRow(label, value) {
+    if (!value) return "";
+    return `<div class="copy-row"><span class="muted">${T.esc(label)}</span>
+      <strong dir="auto">${T.esc(value)}</strong>
+      <button class="icon-btn" type="button" data-copy="${T.esc(value)}" aria-label="نسخ ${T.esc(label)}">${T.icon("copy", "sm")}</button></div>`;
+  }
+
+  function render() {
+    const s = settings;
+    const p = progress || { goal: 0, raised: 0, donors: 0, supporters: [] };
+    const cur = s.currency || "";
+    if (s.intro) $("intro").textContent = s.intro;
+
+    if (!s.enabled) {
+      $("content").innerHTML = T.emptyHTML("التبرعات متوقفة حاليًا", "جزاكم الله خيرًا على حرصكم. يمكنكم دعم تِبيان بالتطوع في المراجعة.",
+        '<a class="btn brand" href="volunteer.html">تطوّع معنا</a>');
+      return;
+    }
+
+    const links = Array.isArray(s.payment_links) ? s.payment_links.filter(l => l && l.url && /^https:\/\//i.test(l.url)) : [];
+    const hasBank = s.iban || s.account_number;
+    const goal = Number(p.goal) || 0;
+    const pct = goal ? Math.min(100, Math.round(Number(p.raised) / goal * 100)) : 0;
+    const expenses = Array.isArray(s.expenses) ? s.expenses.filter(e => e && e.label) : [];
+    const roles = T.state.roles || {};
+
+    $("content").innerHTML = `
+      ${goal ? `<div class="card goal-card">
+        <div class="goal-head"><strong>هدف هذا الشهر</strong><span>${money(p.raised, cur)} من ${money(goal, cur)}</span></div>
+        <div class="goal-bar"><i style="width:${pct}%"></i></div>
+        <div class="muted" style="font-size:13px">${pct}% • ${T.formatCount(p.donors)} ${Number(p.donors) === 1 ? "متبرع" : "متبرعين"} هذا الشهر</div>
+      </div>` : ""}
+
+      <h2 class="section-title" id="ways">${T.icon("donate")} طرق التبرع</h2>
+      ${!links.length && !hasBank ? T.emptyHTML("لم تُضف وسائل التبرع بعد",
+          roles.is_admin ? "أضفها من لوحة الإدارة ← التبرعات." : "ستتاح قريبًا بإذن الله.",
+          roles.is_admin ? '<a class="btn brand" href="admin.html#donations">إعداد التبرعات</a>' : "") : ""}
+      <div class="feature-grid">
+        ${links.map(l => `<a class="feature pay-link" href="${T.esc(l.url)}" target="_blank" rel="noopener noreferrer">
+            <span class="feature-icon">${T.icon("link")}</span><strong>${T.esc(l.label || "الدفع الإلكتروني")}</strong>
+            <span>${T.esc(l.note || "تبرّع عبر صفحة الدفع الآمنة")}</span></a>`).join("")}
+      </div>
+      ${hasBank ? `<div class="card bank-card">
+        <h2>${T.icon("bank")} التحويل البنكي</h2>
+        ${copyRow("البنك", s.bank_name)}${copyRow("اسم الحساب", s.account_name)}${copyRow("رقم الحساب", s.account_number)}
+        ${copyRow("IBAN", s.iban)}${copyRow("SWIFT", s.swift)}
+      </div>` : ""}
+      <p class="muted" style="font-size:12.5px">${T.icon("shield", "sm")} تِبيان لا يطلب بيانات بطاقتك ولا يحفظها؛ الدفع الإلكتروني يتم في صفحة مزوّد الدفع مباشرة.</p>
+
+      ${expenses.length ? `<h2 class="section-title">أين يذهب تبرعك؟</h2>
+        <div class="card"><table class="studio-table"><tbody>
+          ${expenses.map(e => `<tr><td>${T.esc(e.label)}</td><td style="text-align:left;white-space:nowrap">${e.amount ? money(e.amount, cur) + " شهريًا" : ""}</td></tr>`).join("")}
+        </tbody></table></div>` : ""}
+
+      <h2 class="section-title">أبلغنا بتبرعك (اختياري)</h2>
+      <div class="card" id="report-box"></div>
+
+      ${p.supporters && p.supporters.length ? `<h2 class="section-title">${T.icon("star")} الداعمون مؤخرًا</h2>
+        <div class="supporters">${p.supporters.map(x => `<div class="supporter">${T.avatarHTML(x.name, "", "md")}
+          <div><strong>${T.esc(x.name)}</strong><span class="muted"> • ${T.esc(T.timeAgo(x.at))}</span>
+          ${x.message ? `<div class="muted">${T.esc(x.message)}</div>` : ""}</div></div>`).join("")}</div>` : ""}
+
+      ${s.thank_you ? `<div class="ayah-banner" style="margin-top:26px"><div class="ayah" style="font-size:22px">${T.esc(s.thank_you)}</div></div>` : ""}
+      <div class="site-foot">هل تريد الدعم بوقتك؟ <a href="volunteer.html" style="color:var(--gold-ink);font-weight:700">تطوّع في مراجعة التلاوات</a></div>`;
+
+    renderReport();
+  }
+
+  async function renderReport() {
+    const box = $("report-box");
+    const me = T.state.user;
+    if (!me) {
+      box.innerHTML = `<p class="muted">بعد تبرعك يمكنك إبلاغنا ليظهر في مؤشر الهدف الشهري. <a href="${T.esc(T.loginUrl())}" style="color:var(--gold-ink);font-weight:700">سجّل الدخول</a> لإرسال البلاغ.</p>`;
+      return;
+    }
+    const { data: mine } = await T.client.from("donations").select("id,amount,status,created_at,admin_note")
+      .eq("user_id", me.id).order("created_at", { ascending: false }).limit(5);
+    const cur = settings.currency || "";
+    const labels = { pending: "بانتظار التأكيد", confirmed: "مؤكد — جزاك الله خيرًا", rejected: "لم يُعثر عليه" };
+    box.innerHTML = `
+      <form id="report-form">
+        <div class="form-grid">
+          <div class="field"><label for="r-amount">المبلغ (${T.esc(cur)}) *</label><input id="r-amount" type="number" min="0.1" step="0.001" required inputmode="decimal"></div>
+          <div class="field"><label for="r-method">طريقة التبرع</label>
+            <select id="r-method"><option value="bank">تحويل بنكي</option><option value="link">دفع إلكتروني</option><option value="other">أخرى</option></select></div>
+          <div class="field"><label for="r-ref">رقم العملية أو المرجع (يساعدنا في التأكيد)</label><input id="r-ref" maxlength="120" dir="ltr"></div>
+          <div class="field"><label for="r-name">الاسم الذي يظهر</label><input id="r-name" maxlength="100" placeholder="اختياري"></div>
+          <div class="field full"><label for="r-msg">رسالة أو دعاء (اختياري)</label><input id="r-msg" maxlength="500"></div>
+          <div class="field full"><label style="display:flex;gap:8px;align-items:center;font-weight:600"><input type="checkbox" id="r-anon" checked> أخفِ اسمي (يظهر «متبرع كريم»)</label></div>
+        </div>
+        <button class="btn brand" type="submit">${T.icon("send")}إرسال البلاغ</button>
+        <div id="report-msg"></div>
+      </form>
+      ${mine && mine.length ? `<h3 style="margin:18px 0 8px;font-size:15px">بلاغاتك</h3><div class="list">${mine.map(d => `
+        <div class="item"><div class="item-head"><strong>${money(d.amount, cur)}</strong>
+          <span class="badge ${d.status === "confirmed" ? "approved" : d.status}">${labels[d.status] || d.status}</span></div>
+          <div class="item-meta">${T.esc(T.formatDate(d.created_at))}${d.admin_note ? " • " + T.esc(d.admin_note) : ""}</div></div>`).join("")}</div>` : ""}`;
+
+    $("report-form").onsubmit = async e => {
+      e.preventDefault();
+      const amount = Number($("r-amount").value);
+      if (!(amount > 0)) return;
+      const { error } = await T.client.from("donations").insert({
+        user_id: me.id, amount, method: $("r-method").value,
+        reference: $("r-ref").value.trim() || null,
+        donor_name: $("r-name").value.trim() || null,
+        is_anonymous: $("r-anon").checked,
+        message: $("r-msg").value.trim() || null
+      });
+      if (error) { $("report-msg").innerHTML = `<div class="notice error">${T.esc(T.friendlyError(error))}</div>`; return; }
+      T.toast("وصل بلاغك، وستؤكده الإدارة. تقبّل الله منك");
+      renderReport();
+    };
+  }
+
+  $("donate-now").addEventListener("click", e => {
+    e.preventDefault();
+    const target = document.getElementById("ways") || document.getElementById("content");
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    history.replaceState(null, "", "#ways");
+  });
+
+  document.addEventListener("click", async e => {
+    const b = e.target.closest("[data-copy]");
+    if (!b) return;
+    try { await navigator.clipboard.writeText(b.dataset.copy); T.toast("نُسخ"); }
+    catch { prompt("انسخ:", b.dataset.copy); }
+  });
+
+  async function main() {
+    await T.mountShell({ active: "donate" });
+    const [s, p] = await Promise.all([
+      T.client.from("donation_settings").select("*").eq("id", 1).maybeSingle(),
+      T.client.rpc("donation_progress")
+    ]);
+    if (s.error) {
+      console.error("donation_settings:", s.error);
+      const roles = T.state.roles || {};
+      const setupMissing = /does not exist|schema cache|Could not find/i.test(s.error.message || "");
+      $("content").innerHTML = T.emptyHTML("صفحة التبرع غير جاهزة بعد",
+        roles.is_admin && setupMissing
+          ? "جداول التبرعات غير موجودة في قاعدة البيانات: شغّل ملف supabase-setup.sql الأحدث في Supabase ← SQL Editor."
+          : roles.is_admin ? T.friendlyError(s.error) : "نعمل على تجهيزها، جزاكم الله خيرًا على حرصكم. يمكنكم الدعم بالتطوع في المراجعة.",
+        '<a class="btn brand" href="volunteer.html">تطوّع معنا</a>');
+      return;
+    }
+    // إن لم يوجد صف الإعدادات نستخدم القيم الافتراضية بدل إيقاف الصفحة
+    settings = s.data || { enabled: true, currency: "ر.ع.", monthly_goal: 0, payment_links: [], expenses: [] };
+    progress = p.error ? null : p.data;
+    render();
+    if (location.hash === "#ways" && document.getElementById("ways")) {
+      setTimeout(() => document.getElementById("ways").scrollIntoView({ block: "start" }), 50);
+    }
+  }
+  main();
+  </script>
+</body>
+</html>

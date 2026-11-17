@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#123f35">
+  <meta name="description" content="تِبيان — منصة الاستماع إلى التلاوات القرآنية ومشاركتها، وكل تلاوة تُراجع قبل نشرها.">
+  <title>لوحة الإدارة | تِبيان</title>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("tibyan-theme")||(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light")}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="tibyan.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+</head>
+<body>
+  <header class="masthead" id="masthead"></header>
+  <nav class="guide" id="guide" aria-label="القائمة الجانبية"></nav>
+  <main class="page" id="page">
+    <div class="page-narrow" style="padding-top:20px">
+    <section class="welcome">
+      <h1>لوحة تحكم الإدارة</h1>
+      <p class="muted">إدارة القنوات والمتطوعين والتلاوات في منصة تِبيان.</p>
+      <p id="accountInfo">جارٍ التحقق من صلاحيات الحساب...</p>
+      <div class="actions">
+        <button class="button secondary" id="refreshButton" type="button" hidden>تحديث البيانات</button>
+        <button class="button danger" id="logoutButton" type="button" hidden>تسجيل الخروج</button>
+      </div>
+      <div id="statusMessage" class="notice" role="status" aria-live="polite">جارٍ الاتصال...</div>
+    </section>
+
+    <section id="dashboard" hidden>
+      <div class="grid">
+        <div class="stat">التلاوات المنشورة<strong id="publishedCount">—</strong></div>
+        <div class="stat">قيد المراجعة<strong id="pendingCount">—</strong></div>
+        <div class="stat">جاهزة لقرارك<strong id="readyCount">—</strong></div>
+        <div class="stat">طلبات قنوات معلقة<strong id="requestsCount">—</strong></div>
+        <div class="stat">القنوات المعتمدة<strong id="channelsCount">—</strong></div>
+        <div class="stat">المتطوعون<strong id="volunteersCount">—</strong></div>
+      </div>
+
+      <!-- المراجعة -->
+      <section class="panel">
+        <h2>مراجعة التلاوات</h2>
+        <p class="muted">
+          لا تُنشر أي تلاوة إلا بعد موافقة <strong id="requiredLabel">—</strong> من المتطوعين ثم قرارك النهائي.
+          التصويت والقرار النهائي يتمّان من صفحة المراجعة.
+        </p>
+        <div class="actions">
+          <a class="button gold" href="review.html">فتح صفحة المراجعة ←</a>
+        </div>
+      </section>
+
+      <!-- طلبات القنوات -->
+      <section class="panel">
+        <h2>طلبات إنشاء القنوات</h2>
+        <div class="tabs" id="requestTabs">
+          <button class="tab active" data-filter="pending" type="button">المعلقة</button>
+          <button class="tab" data-filter="all" type="button">الكل</button>
+        </div>
+        <div id="requestsMessage" class="notice" hidden></div>
+        <div id="requestsList" class="list"></div>
+      </section>
+
+      <!-- القنوات -->
+      <section class="panel">
+        <h2>القنوات</h2>
+        <div id="channelsMessage" class="notice" hidden></div>
+        <div id="channelsList" class="list"></div>
+      </section>
+
+      <!-- المتطوعون -->
+      <section class="panel">
+        <h2>المتطوعون المراجعون</h2>
+        <p class="muted">يجب أن يُنشئ المتطوع حسابًا في تِبيان أولًا، ثم أضيفيه هنا ببريده الإلكتروني.</p>
+        <form class="inline-form" id="volunteerForm">
+          <input id="volunteerEmail" type="email" required placeholder="بريد المتطوع">
+          <button class="button" type="submit">إضافة متطوع</button>
+        </form>
+        <div id="volunteersMessage" class="notice" hidden></div>
+        <div id="volunteersList" class="list" style="margin-top:14px"></div>
+
+        <h3 style="margin-top:24px">عدد موافقات المتطوعين المطلوبة قبل النشر</h3>
+        <form class="inline-form" id="settingsForm">
+          <select id="requiredSelect" aria-label="عدد الموافقات المطلوبة"></select>
+          <button class="button secondary" type="submit">حفظ</button>
+        </form>
+        <small class="muted">اختيار 0 يعني أن قرار الإدارة وحده يكفي (مناسب مؤقتًا قبل وجود متطوعين).</small>
+        <div id="settingsMessage" class="notice" hidden></div>
+      </section>
+
+      <!-- إضافة تلاوة -->
+      <section class="panel" id="videoFormPanel">
+        <h2 id="formTitle">إضافة تلاوة (تُرسل للمراجعة)</h2>
+        <p class="muted">حتى تلاوات الإدارة تمر بمراجعة المتطوعين قبل نشرها.</p>
+        <form id="videoForm">
+          <div class="form-grid">
+            <div class="field">
+              <label for="videoTitle">عنوان التلاوة *</label>
+              <input id="videoTitle" required maxlength="200" placeholder="مثال: سورة الرحمن">
+            </div>
+            <div class="field">
+              <label for="readerName">اسم القارئ *</label>
+              <input id="readerName" required maxlength="150" placeholder="اسم القارئ">
+            </div>
+            <div class="field">
+              <label for="category">التصنيف *</label>
+              <select id="category" required></select>
+            </div>
+            <div class="field">
+              <label for="videoStatus">بعد الحفظ</label>
+              <select id="videoStatus">
+                <option value="pending">إرسال للمراجعة</option>
+                <option value="draft">مسودة</option>
+              </select>
+            </div>
+            <div class="field full-width">
+              <label for="description">وصف التلاوة</label>
+              <textarea id="description" maxlength="3000" placeholder="وصف اختياري"></textarea>
+            </div>
+            <div class="field full-width">
+              <label for="videoFile">ملف الصوت أو الفيديو *</label>
+              <input id="videoFile" type="file" accept="audio/*,video/*">
+              <small class="muted">عند التعديل اتركيه فارغًا للاحتفاظ بالملف الحالي. أي تعديل يعيد التلاوة للمراجعة.</small>
+            </div>
+            <div class="field full-width">
+              <label for="thumbnailFile">الصورة المصغرة (اختياري)</label>
+              <input id="thumbnailFile" type="file" accept="image/*">
+            </div>
+          </div>
+          <div class="actions">
+            <button class="button" id="saveVideoButton" type="submit">حفظ التلاوة</button>
+            <button class="button secondary" id="cancelEditButton" type="button" hidden>إلغاء التعديل</button>
+          </div>
+          <div id="formMessage" class="notice" hidden role="status" aria-live="polite"></div>
+        </form>
+      </section>
+
+      <!-- كل التلاوات -->
+      <section class="panel">
+        <h2>كل التلاوات</h2>
+        <div class="tabs" id="videoTabs">
+          <button class="tab active" data-filter="all" type="button">الكل</button>
+          <button class="tab" data-filter="published" type="button">منشورة</button>
+          <button class="tab" data-filter="pending" type="button">قيد المراجعة</button>
+          <button class="tab" data-filter="rejected" type="button">مرفوضة</button>
+          <button class="tab" data-filter="draft" type="button">مسودات</button>
+        </div>
+        <div id="videosMessage" class="notice" hidden></div>
+        <div id="videosList" class="list"></div>
+      </section>
+    </section>
+  </div>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="tibyan.js"></script>
+  <script>
+  "use strict";
+
+  
+  const T = window.Tibyan;
+  const $ = id => document.getElementById(id);
+
+  let currentUser = null;
+  let required = 1;
+  let allVideos = [];
+  let approvalsByVideo = new Map();
+  let requests = [];
+  let channels = [];
+  let editingVideo = null;
+  let videoFilter = "all";
+  let requestFilter = "pending";
+  let saving = false;
+
+  function el(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function button(text, className, onClick) {
+    const b = el("button", "button " + (className || ""), text);
+    b.type = "button";
+    b.addEventListener("click", onClick);
+    return b;
+  }
+
+  function message(id, text, type = "") {
+    const box = $(id);
+    box.hidden = !text;
+    box.className = "notice" + (type ? " " + type : "");
+    box.textContent = text || "";
+  }
+
+  function showStatus(text, isError = false) {
+    message("statusMessage", text, isError ? "error" : "");
+  }
+
+  /* ===================== تحميل البيانات ===================== */
+  async function loadAll() {
+    await Promise.all([loadVideos(), loadRequests(), loadChannels(), loadVolunteers()]);
+  }
+
+  async function loadVideos() {
+    const { data, error } = await T.client
+      .from("videos")
+      .select(T.VIDEO_COLUMNS + ",review_note")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      message("videosMessage", "تعذّر تحميل التلاوات: " + T.friendlyError(error), "error");
+      return;
+    }
+    allVideos = data || [];
+
+    approvalsByVideo = new Map();
+    const pendingIds = allVideos.filter(v => v.status === "pending").map(v => v.id);
+    if (pendingIds.length) {
+      const { data: reviews } = await T.client
+        .from("video_reviews")
+        .select("video_id,reviewer_id,reviewer_role,decision")
+        .in("video_id", pendingIds);
+      const owners = new Map(allVideos.map(v => [String(v.id), v.user_id]));
+      (reviews || []).forEach(r => {
+        if (r.decision !== "approve" || r.reviewer_role !== "volunteer") return;
+        if (r.reviewer_id === owners.get(String(r.video_id))) return;
+        const key = String(r.video_id);
+        approvalsByVideo.set(key, (approvalsByVideo.get(key) || 0) + 1);
+      });
+    }
+
+    const pending = allVideos.filter(v => v.status === "pending");
+    $("publishedCount").textContent = allVideos.filter(v => v.status === "published").length;
+    $("pendingCount").textContent = pending.length;
+    $("readyCount").textContent = pending.filter(v => (approvalsByVideo.get(String(v.id)) || 0) >= required).length;
+    renderVideos();
+  }
+
+  function renderVideos() {
+    const list = $("videosList");
+    list.replaceChildren();
+    const items = allVideos.filter(v => videoFilter === "all" || v.status === videoFilter);
+
+    if (!items.length) {
+      message("videosMessage", "لا توجد تلاوات بهذه الحالة.");
+      return;
+    }
+    message("videosMessage", "");
+
+    items.forEach(video => {
+      const card = el("article", "item");
+      const head = el("div", "item-head");
+      head.appendChild(el("h3", "", (video.kind === "short" ? "⚡ مقطع قصير: " : "") + (video.title || "تلاوة بلا عنوان")));
+      let label = T.STATUS_LABELS[video.status] || video.status;
+      if (video.status === "pending") {
+        label += " (" + (approvalsByVideo.get(String(video.id)) || 0) + "/" + required + ")";
+      }
+      head.appendChild(el("span", "badge " + video.status, label));
+      card.appendChild(head);
+
+      const meta = el("div", "item-meta");
+      [
+        "القارئ: " + (video.reader_name || "—"),
+        "التصنيف: " + T.categoryLabel(video.category),
+        "القناة: " + (channelName(video.user_id) || (video.user_id === currentUser.id ? "الإدارة" : "—")),
+        "أُضيفت: " + T.formatDate(video.created_at)
+      ].forEach(t => meta.appendChild(el("span", "", t)));
+      card.appendChild(meta);
+      if (video.review_note) card.appendChild(el("p", "muted", "ملاحظة: " + video.review_note));
+
+      const actions = el("div", "actions");
+      actions.style.marginTop = "10px";
+      const view = el("a", "button secondary", "عرض");
+      view.href = T.watchUrl(video);
+      actions.appendChild(view);
+      actions.appendChild(button("تعديل", "secondary", () => startEditing(video)));
+
+      if (video.status === "published") {
+        actions.appendChild(button("إيقاف النشر وإعادته للمراجعة", "secondary", () => unpublish(video)));
+      }
+      if (video.status === "pending") {
+        const go = el("a", "button gold", "مراجعة");
+        go.href = "review.html";
+        actions.appendChild(go);
+      }
+      actions.appendChild(button("حذف", "danger", () => removeVideo(video)));
+      card.appendChild(actions);
+      list.appendChild(card);
+    });
+  }
+
+  function channelName(userId) {
+    const channel = channels.find(c => c.user_id === userId);
+    return channel ? channel.channel_name : "";
+  }
+
+  async function loadRequests() {
+    const { data, error } = await T.client
+      .from("channel_requests")
+      .select("id,user_id,channel_name,description,status,admin_note,created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      message("requestsMessage", "تعذّر تحميل الطلبات: " + T.friendlyError(error), "error");
+      return;
+    }
+    requests = data || [];
+    $("requestsCount").textContent = requests.filter(r => r.status === "pending").length;
+    renderRequests();
+  }
+
+  function renderRequests() {
+    const list = $("requestsList");
+    list.replaceChildren();
+    const items = requests.filter(r => requestFilter === "all" || r.status === requestFilter);
+
+    if (!items.length) {
+      message("requestsMessage", requestFilter === "pending" ? "لا توجد طلبات معلقة." : "لا توجد طلبات.");
+      return;
+    }
+    message("requestsMessage", "");
+
+    items.forEach(request => {
+      const card = el("article", "item");
+      const head = el("div", "item-head");
+      head.appendChild(el("h3", "", request.channel_name || "قناة بلا اسم"));
+      const labels = { pending: "معلق", approved: "مقبول", rejected: "مرفوض" };
+      head.appendChild(el("span", "badge " + request.status, labels[request.status] || request.status));
+      card.appendChild(head);
+      card.appendChild(el("div", "item-meta", "تاريخ الطلب: " + T.formatDate(request.created_at)));
+      if (request.description) card.appendChild(el("p", "", request.description));
+      if (request.admin_note) card.appendChild(el("p", "muted", "ملاحظة الرفض: " + request.admin_note));
+
+      if (request.status === "pending") {
+        const actions = el("div", "actions");
+        actions.style.marginTop = "10px";
+        actions.appendChild(button("قبول وإنشاء القناة", "", async e => {
+          e.target.disabled = true;
+          const { error } = await T.client.rpc("approve_channel_request", { p_request_id: String(request.id) });
+          if (error) {
+            alert("تعذّر القبول: " + T.friendlyError(error));
+            e.target.disabled = false;
+            return;
+          }
+          await Promise.all([loadRequests(), loadChannels()]);
+        }));
+        actions.appendChild(button("رفض", "danger", async () => {
+          const note = prompt("سبب الرفض (يظهر لصاحب الطلب):", "");
+          if (note === null) return;
+          const { error } = await T.client.rpc("reject_channel_request", {
+            p_request_id: String(request.id), p_note: note
+          });
+          if (error) {
+            alert("تعذّر الرفض: " + T.friendlyError(error));
+            return;
+          }
+          await loadRequests();
+        }));
+        card.appendChild(actions);
+      }
+      list.appendChild(card);
+    });
+  }
+
+  async function loadChannels() {
+    const { data, error } = await T.client
+      .from("channels")
+      .select("id,user_id,channel_name,description,status,created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      message("channelsMessage", "تعذّر تحميل القنوات: " + T.friendlyError(error), "error");
+      return;
+    }
+    channels = data || [];
+    $("channelsCount").textContent = channels.filter(c => c.status === "approved").length;
+
+    const list = $("channelsList");
+    list.replaceChildren();
+    if (!channels.length) {
+      message("channelsMessage", "لا توجد قنوات بعد.");
+      return;
+    }
+    message("channelsMessage", "");
+
+    channels.forEach(channel => {
+      const card = el("article", "item");
+      const head = el("div", "item-head");
+      head.appendChild(el("h3", "", channel.channel_name || "قناة"));
+      head.appendChild(el("span", "badge " + channel.status,
+        channel.status === "approved" ? "معتمدة" : channel.status === "suspended" ? "موقوفة" : channel.status));
+      card.appendChild(head);
+      if (channel.description) card.appendChild(el("p", "", channel.description));
+      if (!channel.user_id) {
+        card.appendChild(el("p", "notice error", "هذه القناة غير مرتبطة بحساب مستخدم، فلا يستطيع صاحبها الرفع."));
+      }
+
+      const actions = el("div", "actions");
+      actions.style.marginTop = "10px";
+      const view = el("a", "button secondary", "تلاوات القناة");
+      view.href = "recitations.html?channel=" + encodeURIComponent(channel.id);
+      actions.appendChild(view);
+
+      const next = channel.status === "approved" ? "suspended" : "approved";
+      actions.appendChild(button(next === "suspended" ? "إيقاف القناة" : "إعادة تفعيل القناة",
+        next === "suspended" ? "danger" : "", async () => {
+          if (next === "suspended" && !confirm("إيقاف القناة يمنع صاحبها من رفع تلاوات جديدة. متابعة؟")) return;
+          const { error: e } = await T.client.rpc("set_channel_status", {
+            p_channel_id: String(channel.id), p_status: next
+          });
+          if (e) {
+            alert("تعذّر التحديث: " + T.friendlyError(e));
+            return;
+          }
+          await loadChannels();
+        }));
+      card.appendChild(actions);
+      list.appendChild(card);
+    });
+
+    renderVideos();
+  }
+
+  async function loadVolunteers() {
+    const { data, error } = await T.client
+      .from("volunteers")
+      .select("user_id,email,active,created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      message("volunteersMessage", "تعذّر تحميل المتطوعين: " + T.friendlyError(error), "error");
+      return;
+    }
+    const volunteers = data || [];
+    $("volunteersCount").textContent = volunteers.length;
+
+    const list = $("volunteersList");
+    list.replaceChildren();
+    if (!volunteers.length) {
+      message("volunteersMessage", "لا يوجد متطوعون بعد.");
+      return;
+    }
+    message("volunteersMessage", "");
+
+    volunteers.forEach(v => {
+      const card = el("article", "item");
+      const head = el("div", "item-head");
+      head.appendChild(el("h3", "", v.email || v.user_id));
+      head.appendChild(button("إزالة", "danger", async () => {
+        if (!confirm("إزالة " + (v.email || "المتطوع") + " من فريق المراجعة؟")) return;
+        const { error: e } = await T.client.rpc("remove_volunteer", { p_user_id: v.user_id });
+        if (e) {
+          alert("تعذّرت الإزالة: " + T.friendlyError(e));
+          return;
+        }
+        await loadVolunteers();
+      }));
+      card.appendChild(head);
+      card.appendChild(el("div", "item-meta", "أُضيف: " + T.formatDate(v.created_at)));
+      list.appendChild(card);
+    });
+  }
+
+  $("volunteerForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const email = $("volunteerEmail").value.trim();
+    if (!email) return;
+    const { error } = await T.client.rpc("add_volunteer", { p_email: email });
+    if (error) {
+      message("volunteersMessage", "تعذّرت الإضافة: " + T.friendlyError(error), "error");
+      return;
+    }
+    $("volunteerEmail").value = "";
+    await loadVolunteers();
+    message("volunteersMessage", "تمت إضافة المتطوع بنجاح.", "success");
+  });
+
+  $("settingsForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    const count = Number($("requiredSelect").value);
+    const { error } = await T.client.rpc("set_required_approvals", { p_count: count });
+    if (error) {
+      message("settingsMessage", "تعذّر الحفظ: " + T.friendlyError(error), "error");
+      return;
+    }
+    required = count;
+    $("requiredLabel").textContent = count === 0 ? "الإدارة وحدها" : count + " " + (count === 1 ? "متطوع" : "متطوعين");
+    message("settingsMessage", "تم الحفظ.", "success");
+    await loadVideos();
+  });
+
+  /* ===================== التلاوات ===================== */
+  function startEditing(video) {
+    editingVideo = video;
+    $("formTitle").textContent = "تعديل: " + (video.title || "");
+    $("videoTitle").value = video.title || "";
+    $("readerName").value = video.reader_name || "";
+    $("category").value = video.category || "";
+    $("description").value = video.description || "";
+    $("videoStatus").value = video.status === "draft" ? "draft" : "pending";
+    $("saveVideoButton").textContent = "حفظ التعديلات";
+    $("cancelEditButton").hidden = false;
+    message("formMessage", video.status === "published"
+      ? "تنبيه: تعديل محتوى تلاوة منشورة يعيدها إلى المراجعة ويخفيها عن الزوار." : "");
+    $("videoFormPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function resetVideoForm() {
+    editingVideo = null;
+    $("videoForm").reset();
+    $("formTitle").textContent = "إضافة تلاوة (تُرسل للمراجعة)";
+    $("saveVideoButton").textContent = "حفظ التلاوة";
+    $("cancelEditButton").hidden = true;
+  }
+
+  async function unpublish(video) {
+    const note = prompt("سبب إيقاف النشر (اختياري، يظهر لصاحب التلاوة):", "");
+    if (note === null) return;
+    const { error } = await T.client.rpc("admin_decide_video", {
+      p_video_id: String(video.id), p_decision: "unpublish", p_note: note
+    });
+    if (error) {
+      alert("تعذّر إيقاف النشر: " + T.friendlyError(error));
+      return;
+    }
+    await loadVideos();
+  }
+
+  async function removeVideo(video) {
+    if (!confirm("حذف التلاوة «" + (video.title || "") + "» وملفاتها نهائيًا؟")) return;
+    const { error } = await T.client.from("videos").delete().eq("id", video.id);
+    if (error) {
+      message("videosMessage", "تعذّر الحذف: " + T.friendlyError(error), "error");
+      return;
+    }
+    await T.removeFile(video.video_url);
+    await T.removeFile(video.thumbnail_url);
+    if (editingVideo && editingVideo.id === video.id) resetVideoForm();
+    await loadVideos();
+  }
+
+  $("videoForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    if (saving) return;
+
+    const title = $("videoTitle").value.trim();
+    const readerName = $("readerName").value.trim();
+    const category = $("category").value;
+    const description = $("description").value.trim();
+    const status = $("videoStatus").value === "draft" ? "draft" : "pending";
+    const videoFile = $("videoFile").files[0];
+    const thumbFile = $("thumbnailFile").files[0];
+
+    if (!title || !readerName || !category) {
+      message("formMessage", "يرجى تعبئة العنوان واسم القارئ والتصنيف.", "error");
+      return;
+    }
+    if (!editingVideo && !videoFile) {
+      message("formMessage", "اختاري ملف الصوت أو الفيديو أولًا.", "error");
+      return;
+    }
+    if (videoFile && !/^(audio|video)\//.test(videoFile.type)) {
+      message("formMessage", "الملف المختار ليس ملف صوت أو فيديو.", "error");
+      return;
+    }
+    if (thumbFile && !thumbFile.type.startsWith("image/")) {
+      message("formMessage", "يجب اختيار صورة للصورة المصغرة.", "error");
+      return;
+    }
+
+    saving = true;
+    $("saveVideoButton").disabled = true;
+    let newVideo = null;
+    let newThumb = null;
+
+    try {
+      message("formMessage", "جارٍ الحفظ ورفع الملفات...");
+      if (videoFile) newVideo = await T.uploadFile(currentUser.id, "videos", videoFile);
+      if (thumbFile) newThumb = await T.uploadFile(currentUser.id, "thumbnails", thumbFile);
+
+      const record = { title, reader_name: readerName, category, description: description || null, status };
+      if (videoFile) record.duration_seconds = await T.readMediaDuration(videoFile);
+      if (newVideo) record.video_url = newVideo;
+      if (newThumb) record.thumbnail_url = newThumb;
+      if (editingVideo && editingVideo.status === "published" && status === "pending") delete record.status;
+
+      let result;
+      if (editingVideo) {
+        result = await T.client.from("videos").update(record).eq("id", editingVideo.id).select("id").single();
+      } else {
+        record.user_id = currentUser.id;
+        result = await T.client.from("videos").insert(record).select("id").single();
+      }
+      if (result.error) throw result.error;
+
+      if (editingVideo && newVideo) await T.removeFile(editingVideo.video_url);
+      if (editingVideo && newThumb) await T.removeFile(editingVideo.thumbnail_url);
+
+      const wasEditing = !!editingVideo;
+      resetVideoForm();
+      message("formMessage", wasEditing ? "تم حفظ التعديلات." : "تمت إضافة التلاوة، وهي الآن بانتظار المراجعة.", "success");
+      await loadVideos();
+    } catch (error) {
+      console.error("Video save error:", error);
+      if (newVideo) await T.removeFile(newVideo);
+      if (newThumb) await T.removeFile(newThumb);
+      message("formMessage", "تعذّر حفظ التلاوة: " + T.friendlyError(error), "error");
+    } finally {
+      saving = false;
+      $("saveVideoButton").disabled = false;
+    }
+  });
+
+  $("cancelEditButton").addEventListener("click", () => {
+    resetVideoForm();
+    message("formMessage", "");
+  });
+
+  function bindTabs(containerId, onChange) {
+    $(containerId).addEventListener("click", event => {
+      const tab = event.target.closest("[data-filter]");
+      if (!tab) return;
+      $(containerId).querySelectorAll(".tab").forEach(t => t.classList.toggle("active", t === tab));
+      onChange(tab.dataset.filter);
+    });
+  }
+  bindTabs("videoTabs", f => { videoFilter = f; renderVideos(); });
+  bindTabs("requestTabs", f => { requestFilter = f; renderRequests(); });
+
+  $("refreshButton").addEventListener("click", loadAll);
+  $("logoutButton").addEventListener("click", async () => {
+    await T.client.auth.signOut();
+    window.location.href = "login.html";
+  });
+
+  /* ===================== بدء التشغيل ===================== */
+  async function init() {
+    if (!T.client) {
+      showStatus("تعذّر تحميل مكتبة Supabase. تحققي من اتصال الإنترنت.", true);
+      return;
+    }
+
+    const roles = await T.getMyRoles();
+    if (!roles.user) {
+      $("accountInfo").innerHTML = 'يجب تسجيل الدخول بحساب المدير أولًا. <a class="button" href="' +
+        T.loginUrl() + '">تسجيل الدخول</a>';
+      showStatus("لم يتم العثور على جلسة تسجيل دخول.", true);
+      return;
+    }
+
+    currentUser = roles.user;
+    $("accountInfo").textContent = "الحساب: " + currentUser.email;
+    $("logoutButton").hidden = false;
+
+    if (roles.setupMissing) {
+      showStatus(T.friendlyError(roles.error), true);
+      return;
+    }
+    if (!roles.is_admin) {
+      showStatus("هذا الحساب غير مخوّل لاستخدام لوحة الإدارة.", true);
+      return;
+    }
+
+    required = Number(roles.required_approvals ?? 1);
+    const select = $("requiredSelect");
+    for (let i = 0; i <= 5; i++) {
+      select.add(new Option(i === 0 ? "0 — قرار الإدارة وحده" : i + (i === 1 ? " متطوع" : " متطوعين"), String(i)));
+    }
+    select.value = String(Math.min(required, 5));
+    $("requiredLabel").textContent = required === 0 ? "الإدارة وحدها" : required + " " + (required === 1 ? "متطوع" : "متطوعين");
+
+    T.fillCategorySelect($("category"), { placeholder: "اختاري التصنيف" });
+
+    $("dashboard").hidden = false;
+    $("refreshButton").hidden = false;
+    showStatus("تم التحقق من حساب الإدارة بنجاح.");
+    await loadAll();
+  }
+
+  init().catch(error => {
+    console.error("Admin dashboard error:", error);
+    showStatus("حدث خطأ غير متوقع: " + T.friendlyError(error), true);
+  });
+  
+  /* ===================== طلبات التطوع والتبرعات ===================== */
+  const X = {
+    el(tag, cls, text) {
+      const n = document.createElement(tag);
+      if (cls) n.className = cls;
+      if (text !== undefined) n.textContent = text;
+      return n;
+    },
+    btn(text, cls, fn) {
+      const b = X.el("button", "button " + (cls || ""), text);
+      b.type = "button";
+      b.addEventListener("click", fn);
+      return b;
+    },
+    money(n, cur) {
+      return new Intl.NumberFormat("ar-u-nu-latn", { maximumFractionDigits: 3 }).format(Number(n) || 0) + " " + (cur || "");
+    }
+  };
+  let xAppFilter = "pending";
+  let xDonFilter = "pending";
+  let xSettings = null;
+
+  function xMountPanels() {
+    const dash = document.getElementById("dashboard");
+    const anchor = dash.querySelector(".grid");
+    const apps = X.el("section", "panel");
+    apps.id = "volunteer-apps";
+    apps.innerHTML = `<h2>طلبات التطوع <span class="badge pending" id="x-apps-count">—</span></h2>
+      <p class="muted">من يُقبل يُضاف إلى فريق المراجعة مباشرة. صفحة التقديم: <a href="volunteer.html" style="color:var(--gold-ink);font-weight:700">volunteer.html</a></p>
+      <div class="tabs" id="x-app-tabs"><button class="tab active" data-f="pending" type="button">الجديدة</button><button class="tab" data-f="all" type="button">الكل</button></div>
+      <div class="list" id="x-apps"></div>`;
+    const don = X.el("section", "panel");
+    don.id = "donations";
+    don.innerHTML = `<h2>التبرعات <span class="badge pending" id="x-don-count">—</span></h2>
+      <div class="grid" id="x-don-stats"></div>
+      <div class="tabs" id="x-don-tabs">
+        <button class="tab active" data-f="pending" type="button">بلاغات بانتظار التأكيد</button>
+        <button class="tab" data-f="confirmed" type="button">المؤكدة</button>
+        <button class="tab" data-f="settings" type="button">إعدادات صفحة التبرع</button>
+        <button class="tab" data-f="manual" type="button">تسجيل تبرع يدويًا</button>
+      </div>
+      <div id="x-don-body"></div>`;
+    anchor.after(apps, don);
+
+    document.getElementById("x-app-tabs").addEventListener("click", e => {
+      const t = e.target.closest("[data-f]");
+      if (!t) return;
+      xAppFilter = t.dataset.f;
+      document.querySelectorAll("#x-app-tabs .tab").forEach(b => b.classList.toggle("active", b === t));
+      xLoadApps();
+    });
+    document.getElementById("x-don-tabs").addEventListener("click", e => {
+      const t = e.target.closest("[data-f]");
+      if (!t) return;
+      xDonFilter = t.dataset.f;
+      document.querySelectorAll("#x-don-tabs .tab").forEach(b => b.classList.toggle("active", b === t));
+      xRenderDon();
+    });
+    if (location.hash === "#donations" || location.hash === "#volunteer-apps") {
+      setTimeout(() => document.querySelector(location.hash).scrollIntoView({ behavior: "smooth" }), 300);
+    }
+  }
+
+  async function xLoadApps() {
+    const list = document.getElementById("x-apps");
+    let q = T.client.from("volunteer_applications").select("*").order("created_at", { ascending: false });
+    if (xAppFilter === "pending") q = q.eq("status", "pending");
+    const { data, error } = await q;
+    if (error) { list.innerHTML = `<div class="notice error">${T.esc(T.friendlyError(error))}</div>`; return; }
+    const rows = data || [];
+    if (xAppFilter === "pending") document.getElementById("x-apps-count").textContent = rows.length;
+    list.replaceChildren();
+    if (!rows.length) { list.innerHTML = `<div class="notice">لا توجد طلبات ${xAppFilter === "pending" ? "جديدة" : ""}.</div>`; return; }
+
+    const labels = { pending: "جديد", approved: "مقبول", rejected: "معتذر عنه" };
+    rows.forEach(a => {
+      const card = X.el("article", "item");
+      const head = X.el("div", "item-head");
+      head.append(X.el("h3", "", a.full_name), X.el("span", "badge " + a.status, labels[a.status] || a.status));
+      card.appendChild(head);
+      const meta = X.el("div", "item-meta");
+      [a.email, a.phone, a.country, "الحفظ: " + a.quran_level, a.tajweed_level ? "التجويد: " + a.tajweed_level : "",
+       a.has_ijazah ? "مُجاز" + (a.ijazah_details ? " — " + a.ijazah_details : "") : "",
+       a.hours_per_week ? "≈ " + a.hours_per_week + " ساعة أسبوعيًا" : "", T.formatDate(a.created_at)]
+        .filter(Boolean).forEach(t => meta.appendChild(X.el("span", "", t)));
+      card.appendChild(meta);
+      if (a.motivation) card.appendChild(X.el("p", "", a.motivation));
+      if (a.admin_note) card.appendChild(X.el("p", "muted", "ملاحظة: " + a.admin_note));
+
+      if (a.status === "pending") {
+        const actions = X.el("div", "actions");
+        actions.style.marginTop = "10px";
+        actions.append(
+          X.btn("قبول وإضافته للمراجعين", "", async e => {
+            e.target.disabled = true;
+            const { error: err } = await T.client.rpc("decide_volunteer_application", { p_id: String(a.id), p_approve: true, p_note: null });
+            if (err) { alert(T.friendlyError(err)); e.target.disabled = false; return; }
+            T.toast("أُضيف " + a.full_name + " إلى فريق المراجعة");
+            xLoadApps();
+            if (typeof loadVolunteers === "function") loadVolunteers();
+          }),
+          X.btn("اعتذار", "danger", async () => {
+            const note = prompt("سبب الاعتذار (يظهر للمتقدّم):", "");
+            if (note === null) return;
+            const { error: err } = await T.client.rpc("decide_volunteer_application", { p_id: String(a.id), p_approve: false, p_note: note });
+            if (err) { alert(T.friendlyError(err)); return; }
+            xLoadApps();
+          }));
+        card.appendChild(actions);
+      }
+      list.appendChild(card);
+    });
+  }
+
+  async function xLoadDonStats() {
+    const [s, p, pend] = await Promise.all([
+      T.client.from("donation_settings").select("*").eq("id", 1).maybeSingle(),
+      T.client.rpc("donation_progress"),
+      T.client.from("donations").select("id", { count: "exact", head: true }).eq("status", "pending")
+    ]);
+    xSettings = s.data || {};
+    const prog = p.data || {};
+    const cur = xSettings.currency;
+    document.getElementById("x-don-count").textContent = pend.count ?? 0;
+    document.getElementById("x-don-stats").innerHTML = [
+      ["هذا الشهر", X.money(prog.raised, cur)],
+      ["الهدف الشهري", Number(prog.goal) ? X.money(prog.goal, cur) : "غير محدد"],
+      ["متبرعو الشهر", prog.donors ?? 0],
+      ["الإجمالي", X.money(prog.total, cur)]
+    ].map(([l, v]) => `<div class="stat">${l}<strong style="font-size:20px">${v}</strong></div>`).join("");
+  }
+
+  async function xRenderDon() {
+    const body = document.getElementById("x-don-body");
+    if (xDonFilter === "settings") return xRenderSettings(body);
+    if (xDonFilter === "manual") return xRenderManual(body);
+
+    const { data, error } = await T.client.from("donations").select("*").eq("status", xDonFilter)
+      .order(xDonFilter === "confirmed" ? "confirmed_at" : "created_at", { ascending: false }).limit(100);
+    if (error) { body.innerHTML = `<div class="notice error">${T.esc(T.friendlyError(error))}</div>`; return; }
+    const cur = (xSettings && xSettings.currency) || "";
+    body.replaceChildren();
+    if (!data || !data.length) { body.innerHTML = `<div class="notice">لا توجد بلاغات.</div>`; return; }
+    const list = X.el("div", "list");
+    data.forEach(d => {
+      const card = X.el("article", "item");
+      const head = X.el("div", "item-head");
+      head.append(X.el("h3", "", X.money(d.amount, cur)), X.el("span", "badge " + (d.status === "confirmed" ? "approved" : d.status),
+        { pending: "بانتظار التأكيد", confirmed: "مؤكد", rejected: "مرفوض" }[d.status]));
+      card.appendChild(head);
+      const meta = X.el("div", "item-meta");
+      [(d.donor_name || "بلا اسم") + (d.is_anonymous ? " (مخفي)" : ""),
+       { bank: "تحويل بنكي", link: "دفع إلكتروني", other: "أخرى" }[d.method],
+       d.reference ? "المرجع: " + d.reference : "", T.formatDate(d.created_at)]
+        .filter(Boolean).forEach(t => meta.appendChild(X.el("span", "", t)));
+      card.appendChild(meta);
+      if (d.message) card.appendChild(X.el("p", "", d.message));
+      if (d.status === "pending") {
+        const actions = X.el("div", "actions");
+        actions.style.marginTop = "10px";
+        actions.append(
+          X.btn("تأكيد الاستلام", "", async () => {
+            const { error: err } = await T.client.rpc("decide_donation", { p_id: String(d.id), p_confirm: true, p_note: null });
+            if (err) return alert(T.friendlyError(err));
+            T.toast("أُكّد التبرع");
+            xLoadDonStats(); xRenderDon();
+          }),
+          X.btn("لم يصل", "danger", async () => {
+            const note = prompt("ملاحظة للمتبرع:", "لم نعثر على التحويل، يرجى التواصل معنا.");
+            if (note === null) return;
+            const { error: err } = await T.client.rpc("decide_donation", { p_id: String(d.id), p_confirm: false, p_note: note });
+            if (err) return alert(T.friendlyError(err));
+            xLoadDonStats(); xRenderDon();
+          }));
+        card.appendChild(actions);
+      }
+      list.appendChild(card);
+    });
+    body.appendChild(list);
+  }
+
+  function xLines(arr, keys) {
+    return (Array.isArray(arr) ? arr : []).map(o => keys.map(k => o[k] ?? "").join(" | ").replace(/( \| )+$/, "")).join("\n");
+  }
+  function xParse(text, keys) {
+    return text.split("\n").map(l => l.trim()).filter(Boolean).map(l => {
+      const parts = l.split("|").map(p => p.trim());
+      const o = {};
+      keys.forEach((k, i) => { if (parts[i]) o[k] = parts[i]; });
+      return o;
+    });
+  }
+
+  function xRenderSettings(body) {
+    const s = xSettings || {};
+    body.innerHTML = `<form id="x-settings">
+      <div class="form-grid">
+        <div class="field"><label><input type="checkbox" id="xs-enabled" style="width:auto;display:inline" ${s.enabled !== false ? "checked" : ""}> صفحة التبرع مفعّلة</label></div>
+        <div class="field"><label for="xs-currency">العملة</label><input id="xs-currency" maxlength="12" value="${T.esc(s.currency || "ر.ع.")}"></div>
+        <div class="field"><label for="xs-goal">الهدف الشهري (تكلفة الخادم)</label><input id="xs-goal" type="number" min="0" step="0.001" value="${T.esc(s.monthly_goal || 0)}"></div>
+        <div class="field full-width"><label for="xs-intro">نص التعريف أعلى الصفحة</label><textarea id="xs-intro" maxlength="1000">${T.esc(s.intro || "")}</textarea></div>
+        <div class="field"><label for="xs-bank">اسم البنك</label><input id="xs-bank" value="${T.esc(s.bank_name || "")}"></div>
+        <div class="field"><label for="xs-acname">اسم صاحب الحساب</label><input id="xs-acname" value="${T.esc(s.account_name || "")}"></div>
+        <div class="field"><label for="xs-acno">رقم الحساب</label><input id="xs-acno" dir="ltr" value="${T.esc(s.account_number || "")}"></div>
+        <div class="field"><label for="xs-iban">IBAN</label><input id="xs-iban" dir="ltr" value="${T.esc(s.iban || "")}"></div>
+        <div class="field"><label for="xs-swift">SWIFT</label><input id="xs-swift" dir="ltr" value="${T.esc(s.swift || "")}"></div>
+        <div class="field full-width"><label for="xs-links">روابط الدفع الإلكتروني — سطر لكل رابط: الاسم | الرابط | وصف قصير</label>
+          <textarea id="xs-links" dir="auto" placeholder="ثواني | https://... | ادفع بالبطاقة البنكية&#10;PayPal | https://paypal.me/...">${T.esc(xLines(s.payment_links, ["label", "url", "note"]))}</textarea>
+          <small class="muted">روابط من بوابة الدفع (مثل ثواني أو PayPal أو Stripe). يجب أن تبدأ بـ https://</small></div>
+        <div class="field full-width"><label for="xs-exp">بنود التكاليف للشفافية — سطر لكل بند: البند | المبلغ الشهري</label>
+          <textarea id="xs-exp" placeholder="الخادم وقاعدة البيانات | 10&#10;تخزين ونقل التلاوات | 25">${T.esc(xLines(s.expenses, ["label", "amount"]))}</textarea></div>
+        <div class="field full-width"><label for="xs-thanks">رسالة الشكر أسفل الصفحة</label><input id="xs-thanks" maxlength="300" value="${T.esc(s.thank_you || "")}" placeholder="جزاكم الله خيرًا وجعله في ميزان حسناتكم"></div>
+      </div>
+      <div class="actions"><button class="button" type="submit">حفظ الإعدادات</button><a class="button secondary" href="donate.html" target="_blank">معاينة الصفحة</a></div>
+      <div id="xs-msg"></div>
+    </form>`;
+
+    document.getElementById("x-settings").onsubmit = async e => {
+      e.preventDefault();
+      const v = id => document.getElementById(id).value.trim();
+      const links = xParse(v("xs-links"), ["label", "url", "note"]);
+      const bad = links.find(l => !/^https:\/\//i.test(l.url || ""));
+      if (bad) {
+        document.getElementById("xs-msg").innerHTML = `<div class="notice error">الرابط «${T.esc(bad.label || "")}» يجب أن يبدأ بـ https://</div>`;
+        return;
+      }
+      const expenses = xParse(v("xs-exp"), ["label", "amount"]).map(x => ({ label: x.label, amount: x.amount ? Number(x.amount) || null : null }));
+      const { error } = await T.client.from("donation_settings").update({
+        enabled: document.getElementById("xs-enabled").checked,
+        currency: v("xs-currency") || "ر.ع.",
+        monthly_goal: Number(v("xs-goal")) || 0,
+        intro: v("xs-intro") || null,
+        bank_name: v("xs-bank") || null, account_name: v("xs-acname") || null,
+        account_number: v("xs-acno") || null, iban: v("xs-iban").replace(/\s+/g, " ") || null, swift: v("xs-swift") || null,
+        payment_links: links, expenses, thank_you: v("xs-thanks") || null,
+        updated_at: new Date().toISOString()
+      }).eq("id", 1);
+      document.getElementById("xs-msg").innerHTML = error
+        ? `<div class="notice error">${T.esc(T.friendlyError(error))}</div>`
+        : `<div class="notice success">حُفظت الإعدادات.</div>`;
+      if (!error) xLoadDonStats();
+    };
+  }
+
+  function xRenderManual(body) {
+    body.innerHTML = `<form id="x-manual" class="inline-form">
+      <input id="xm-amount" type="number" min="0.1" step="0.001" required placeholder="المبلغ">
+      <input id="xm-name" maxlength="100" placeholder="اسم المتبرع (اختياري)">
+      <select id="xm-method"><option value="bank">تحويل بنكي</option><option value="link">دفع إلكتروني</option><option value="other">نقدًا / أخرى</option></select>
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="xm-anon" style="width:auto"> إخفاء الاسم</label>
+      <button class="button" type="submit">تسجيل كتبرع مؤكد</button>
+    </form><small class="muted">لتبرع وصلك مباشرة دون بلاغ من المتبرع.</small><div id="xm-msg"></div>`;
+    document.getElementById("x-manual").onsubmit = async e => {
+      e.preventDefault();
+      const { error } = await T.client.from("donations").insert({
+        amount: Number(document.getElementById("xm-amount").value),
+        donor_name: document.getElementById("xm-name").value.trim() || null,
+        is_anonymous: document.getElementById("xm-anon").checked,
+        method: document.getElementById("xm-method").value,
+        status: "confirmed"
+      });
+      document.getElementById("xm-msg").innerHTML = error
+        ? `<div class="notice error">${T.esc(T.friendlyError(error))}</div>`
+        : `<div class="notice success">سُجّل التبرع.</div>`;
+      if (!error) { e.target.reset(); xLoadDonStats(); }
+    };
+  }
+
+  T.getMyRoles().then(async roles => {
+    if (!roles.is_admin || roles.setupMissing) return;
+    const wait = () => new Promise(r => { const t = setInterval(() => { if (!document.getElementById("dashboard").hidden) { clearInterval(t); r(); } }, 150); });
+    await wait();
+    xMountPanels();
+    await xLoadDonStats();
+    xLoadApps();
+    xRenderDon();
+  });
+
+  T.mountShell({ active: "admin" });
+  </script>
+</body>
+</html>
